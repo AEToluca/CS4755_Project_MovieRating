@@ -14,6 +14,9 @@ import json
 from pathlib import Path
 
 import pandas as pd
+from scipy import sparse
+from sklearn.compose import ColumnTransformer
+from sklearn.preprocessing import OneHotEncoder
 
 
 ROOT = Path(__file__).resolve().parent
@@ -27,6 +30,9 @@ GENRES = [
     "western",
 ]
 RATING_COLUMNS = ["user_id", "movie_id", "rating", "timestamp"]
+CATEGORICAL_COLUMNS = ["gender", "occupation"]
+NUMERIC_COLUMNS = ["age", *GENRES]
+FEATURE_COLUMNS = [*CATEGORICAL_COLUMNS, *NUMERIC_COLUMNS]
 
 
 def load_data(data_dir: Path) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
@@ -86,6 +92,45 @@ def enrich(ratings: pd.DataFrame, users: pd.DataFrame, movies: pd.DataFrame) -> 
     return enriched
 
 
+def save_encoded_split(
+    split: str,
+    train: pd.DataFrame,
+    test: pd.DataFrame,
+    output_dir: Path,
+) -> None:
+    """One-hot encode categories, fitting on train and reusing on test."""
+    encoder = ColumnTransformer(
+        transformers=[
+            ("categorical", OneHotEncoder(handle_unknown="ignore"), CATEGORICAL_COLUMNS),
+            ("numeric", "passthrough", NUMERIC_COLUMNS),
+        ],
+        remainder="drop",
+    )
+
+    train_matrix = encoder.fit_transform(train[FEATURE_COLUMNS])
+    test_matrix = encoder.transform(test[FEATURE_COLUMNS])
+    feature_names = encoder.get_feature_names_out()
+
+    for partition, matrix, source in (
+        ("base", train_matrix, train),
+        ("test", test_matrix, test),
+    ):
+        if sparse.issparse(matrix):
+            features = pd.DataFrame.sparse.from_spmatrix(
+                matrix, columns=feature_names, index=source.index
+            )
+        else:
+            features = pd.DataFrame(matrix, columns=feature_names, index=source.index)
+        # Keep the target in the same file for convenience. IDs and other
+        # metadata are deliberately excluded from model features.
+        features["rating"] = source["rating"].to_numpy()
+        features.to_csv(output_dir / f"{split}_{partition}_encoded.csv", index=False)
+
+    (output_dir / f"{split}_feature_names.json").write_text(
+        json.dumps(feature_names.tolist(), indent=2), encoding="utf-8"
+    )
+
+
 def preprocess(data_dir: Path = DATA_DIR, output_dir: Path = DEFAULT_OUTPUT_DIR) -> dict[str, int]:
     """Validate and write cleaned core tables and official enriched splits."""
     ratings, users, movies = load_data(data_dir)
@@ -93,6 +138,8 @@ def preprocess(data_dir: Path = DATA_DIR, output_dir: Path = DEFAULT_OUTPUT_DIR)
     output_dir.mkdir(parents=True, exist_ok=True)
     split_dir = output_dir / "splits"
     split_dir.mkdir(parents=True, exist_ok=True)
+    encoded_dir = output_dir / "encoded_splits"
+    encoded_dir.mkdir(parents=True, exist_ok=True)
 
     # Keep Unix timestamps in the canonical table; add a readable UTC time to
     # the joined table for analysis and plotting.
@@ -102,6 +149,7 @@ def preprocess(data_dir: Path = DATA_DIR, output_dir: Path = DEFAULT_OUTPUT_DIR)
     enrich(ratings, users, movies).to_csv(output_dir / "ratings_enriched.csv", index=False)
 
     split_counts: dict[str, int] = {}
+    enriched_splits: dict[str, pd.DataFrame] = {}
     for split in ("u1", "u2", "u3", "u4", "u5", "ua", "ub"):
         for partition in ("base", "test"):
             source = data_dir / f"{split}.{partition}"
@@ -111,7 +159,14 @@ def preprocess(data_dir: Path = DATA_DIR, output_dir: Path = DEFAULT_OUTPUT_DIR)
             validate_data(part, users, movies)
             enriched_part = enrich(part, users, movies)
             enriched_part.to_csv(split_dir / f"{split}_{partition}.csv", index=False)
+            enriched_splits[f"{split}_{partition}"] = enriched_part
             split_counts[f"{split}_{partition}"] = len(part)
+
+    for split in ("u1", "u2", "u3", "u4", "u5", "ua", "ub"):
+        train = enriched_splits.get(f"{split}_base")
+        test = enriched_splits.get(f"{split}_test")
+        if train is not None and test is not None:
+            save_encoded_split(split, train, test, encoded_dir)
 
     summary = {
         "ratings": len(ratings),
