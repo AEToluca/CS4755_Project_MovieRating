@@ -1,0 +1,18 @@
+========================================================================
+KEY RESULTS (average over the 5 test folds)
+========================================================================
+  Random forest                accuracy  44.2%   macro-F1 0.369   MAE 0.712
+  Baseline: always predict 4   accuracy  34.2%   macro-F1 0.102   MAE 0.894
+  Baseline: user's average     accuracy  36.1%   macro-F1 0.202   MAE 0.805
+
+  Fold-to-fold spread (std): accuracy +/-0.5%, MAE +/-0.007
+  Best parameters: {'max_depth': None, 'max_features': 'sqrt', 'min_samples_leaf': 5, 'n_estimators': 200}
+
+  Feature sets:
+  Demographics + genre flags   accuracy  37.3%   macro-F1 0.261   MAE 0.847
+  Rating history only          accuracy  41.5%   macro-F1 0.353   MAE 0.759
+  Demographics + history       accuracy  43.9%   macro-F1 0.363   MAE 0.721
+  All features                 accuracy  44.2%   macro-F1 0.369   MAE 0.712
+
+  Accuracy and macro-F1: higher is better.  MAE (stars off): lower is better.
+========================================================================
