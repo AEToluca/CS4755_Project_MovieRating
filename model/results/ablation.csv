@@ -1,0 +1,7 @@
+,accuracy,accuracy,macro_f1,macro_f1,mae,mae
+,mean,std,mean,std,mean,std
+model,,,,,,
+Demographics + genre flags,0.373,0.006,0.261,0.012,0.847,0.01
+Rating history only,0.415,0.002,0.353,0.006,0.759,0.004
+Demographics + history,0.439,0.003,0.363,0.007,0.721,0.006
+All features,0.442,0.005,0.369,0.01,0.712,0.007

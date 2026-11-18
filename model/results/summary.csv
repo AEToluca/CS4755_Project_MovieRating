@@ -1,0 +1,6 @@
+,accuracy,accuracy,macro_f1,macro_f1,mae,mae
+,mean,std,mean,std,mean,std
+model,,,,,,
+Always predict 4,0.342,0.004,0.102,0.001,0.894,0.01
+Round user's average,0.361,0.006,0.202,0.009,0.805,0.013
+Random forest,0.442,0.005,0.369,0.01,0.712,0.007
